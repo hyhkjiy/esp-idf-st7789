@@ -9,12 +9,13 @@
 #include "esp_log.h"
 
 #include "st7789.h"
+#include "decode_image.h"
 
 #define TAG "ILI9340"
 #define	_DEBUG_ 0
 
-static const int GPIO_MOSI = 23;
-static const int GPIO_SCLK = 18;
+static const int GPIO_MOSI = 13;
+static const int GPIO_SCLK = 14;
 
 static const int SPI_Command_Mode = 0;
 static const int SPI_Data_Mode = 1;
@@ -297,6 +298,32 @@ void lcdDisplayOn(TFT_t * dev) {
 // color:color
 void lcdFillScreen(TFT_t * dev, uint16_t color) {
 	lcdDrawFillRect(dev, 0, 0, dev->_width-1, dev->_height-1, color);
+}
+
+void lcdDrawImage(TFT_t * dev, uint8_t img[], uint16_t x, uint16_t y, uint16_t w, uint16_t h){
+	if (x >= dev->_width) return;
+	if (y >= dev->_height) return;
+
+	if (x + w > dev->_width) w = dev->_width - 1 - x;
+	if (y + h > dev->_height) h = dev->_height - 1 - y;
+
+	pixel_s **pixels;
+    decode_image(&pixels, img, w, h);
+
+	spi_master_write_command(dev, 0x2A);	// set column(x) address
+	spi_master_write_addr(dev, x + dev->_offsetx, x + w + dev->_offsetx);
+	spi_master_write_command(dev, 0x2B);	// set Page(y) address
+	spi_master_write_addr(dev, y + dev->_offsety, y + h + dev->_offsety);
+	
+	spi_master_write_command(dev, 0x2C);	//  Memory Write
+
+	for(int i = 0;i < w; i++){
+		for(int j = 0; j < h; j++){
+			pixel_s pixel = pixels[i][j];
+			uint16_t color = rgb565_conv(pixel.red, pixel.green, pixel.blue);
+			spi_master_write_data_word(dev, color);
+		}
+	}
 }
 
 // Draw line
